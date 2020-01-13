@@ -85,7 +85,11 @@ func loadTrie(path string) error {
 		if err == io.EOF {
 			return nil
 		}
+		line = strings.Split(line, "#")[0]
 		line = strings.Trim(line, " \n\t\r")
+		if line == "" {
+			continue
+		}
 		bannedPatterns[line] = struct{}{}
 	}
 }
