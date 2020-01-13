@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"golang.org/x/tools/go/analysis"
@@ -31,16 +33,25 @@ func Analyzer() *analysis.Analyzer {
 
 var (
 	bannedPatterns map[string]struct{}
+	bpMtx          sync.Mutex
 )
+
+func getBannedPtsMap(path string) map[string]struct{} {
+	bpMtx.Lock()
+	defer bpMtx.Unlock()
+	if bannedPatterns == nil {
+		err := loadTrie(path)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	return bannedPatterns
+}
 
 func run(cfgPath *string) func(*analysis.Pass) (interface{}, error) {
 	return func(pass *analysis.Pass) (interface{}, error) {
-		if bannedPatterns == nil {
-			err := loadTrie(*cfgPath)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
+		patterns := getBannedPtsMap(*cfgPath)
 		inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 		nodeFilter := []ast.Node{
 			(*ast.CallExpr)(nil),
@@ -52,8 +63,8 @@ func run(cfgPath *string) func(*analysis.Pass) (interface{}, error) {
 			if fn == nil {
 				return
 			}
-			if _, ok := bannedPatterns[fn.FullName()]; ok {
-				pass.Reportf(fn.Pos(), "func %v is banned", fn.FullName())
+			if _, ok := patterns[fn.FullName()]; ok {
+				pass.Reportf(call.Pos(), "func %v is banned", fn.FullName())
 			}
 		})
 		return nil, nil
@@ -73,6 +84,7 @@ func loadTrie(path string) error {
 		if err == io.EOF {
 			return nil
 		}
+		line = strings.Trim(line, " \n\t\r")
 		bannedPatterns[line] = struct{}{}
 	}
 }
