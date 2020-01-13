@@ -71,6 +71,7 @@ func run(cfgPath *string) func(*analysis.Pass) (interface{}, error) {
 	}
 }
 
+// TODO: create a real trie to match symbols by wildcards
 func loadTrie(path string) error {
 	bannedPatterns = map[string]struct{}{}
 	f, err := os.Open(path)
