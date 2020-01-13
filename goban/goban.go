@@ -32,11 +32,11 @@ func Analyzer() *analysis.Analyzer {
 }
 
 var (
-	bannedPatterns map[string]struct{}
+	bannedPatterns map[string]string // map (symbol name)->(comment)
 	bpMtx          sync.Mutex
 )
 
-func getBannedPtsMap(path string) map[string]struct{} {
+func getBannedPtsMap(path string) map[string]string {
 	bpMtx.Lock()
 	defer bpMtx.Unlock()
 	if bannedPatterns == nil {
@@ -63,8 +63,11 @@ func run(cfgPath *string) func(*analysis.Pass) (interface{}, error) {
 			if fn == nil {
 				return
 			}
-			if _, ok := patterns[fn.FullName()]; ok {
-				pass.Reportf(call.Pos(), "func %v is banned", fn.FullName())
+			if comment, ok := patterns[fn.FullName()]; ok {
+				if comment != "" {
+					comment = " - " + comment
+				}
+				pass.Reportf(call.Pos(), "func %v is banned%v", fn.FullName(), comment)
 			}
 		})
 		return nil, nil
@@ -73,7 +76,7 @@ func run(cfgPath *string) func(*analysis.Pass) (interface{}, error) {
 
 // TODO: create a real trie to match symbols by wildcards
 func loadTrie(path string) error {
-	bannedPatterns = map[string]struct{}{}
+	bannedPatterns = map[string]string{}
 	f, err := os.Open(path)
 	if err != nil {
 		return errors.Wrap(err, "when opening goban config file")
@@ -85,11 +88,20 @@ func loadTrie(path string) error {
 		if err == io.EOF {
 			return nil
 		}
+
+		var comment string
+		commentPointIdx := strings.Index(line, "#")
+		if commentPointIdx > -1 {
+			comment = line[commentPointIdx+1:]
+			comment = strings.Trim(comment, " \n\t\r")
+			line = line[:commentPointIdx]
+		}
+
 		line = strings.Split(line, "#")[0]
 		line = strings.Trim(line, " \n\t\r")
 		if line == "" {
 			continue
 		}
-		bannedPatterns[line] = struct{}{}
+		bannedPatterns[line] = comment
 	}
 }

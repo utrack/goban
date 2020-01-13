@@ -6,14 +6,22 @@
 `goban -cfg goban.cfg ./...`
 
 # Config
-Config is a newline-delimited list of banned symbols. Comment lines with pound
+Config is a newline-delimited list of banned symbols. Comments start with pound 
 symbol (#).
-Examples:
 
+Examples:
 ```conf
-(*net/url.URL).Query # bans method `url.Query()` on type *net/url.URL
-context.TODO # bans `context.TODO()`
+# bans method `url.Query()` on type *net/url.URL
+(*net/url.URL).Query
+
+# bans `context.TODO()`
+context.TODO
 ```
+
+If symbol has a comment on the same line - then it is printed along with the
+report.
+
+`fmt.Errorf # use pkg/errors instead` yields `/path/to/file/foo.go:145:15: fmt.Errorf is banned - use pkg/errors instead`
 
 # TODO
 - [ ] Ban variables as well
