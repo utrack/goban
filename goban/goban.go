@@ -55,19 +55,35 @@ func run(cfgPath *string) func(*analysis.Pass) (interface{}, error) {
 		inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 		nodeFilter := []ast.Node{
 			(*ast.CallExpr)(nil),
+			(*ast.SelectorExpr)(nil),
+			(*ast.ImportSpec)(nil),
 		}
 
-		inspect.Preorder(nodeFilter, func(n ast.Node) {
-			call := n.(*ast.CallExpr)
-			fn, _ := typeutil.Callee(pass.TypesInfo, call).(*types.Func)
-			if fn == nil {
-				return
-			}
-			if comment, ok := patterns[fn.FullName()]; ok {
-				if comment != "" {
-					comment = " - " + comment
+		inspect.Preorder(nodeFilter, func(nn ast.Node) {
+			switch n := nn.(type) {
+			case *ast.ImportSpec:
+				comment, ok := patterns[n.Path.Value]
+				if !ok {
+					return
 				}
-				pass.Reportf(call.Pos(), "func %v is banned%v", fn.FullName(), comment)
+				pass.Reportf(n.Pos(), "package '%v' is banned%v", n.Path.Value, comment)
+			case *ast.CallExpr:
+				fn, _ := typeutil.Callee(pass.TypesInfo, n).(*types.Func)
+				if fn == nil {
+					return
+				}
+				comment, ok := patterns[fn.FullName()]
+				if !ok {
+					return
+				}
+				pass.Reportf(n.Pos(), "func %v is banned%v", fn.FullName(), comment)
+			case *ast.SelectorExpr:
+				t := pass.TypesInfo.TypeOf(n)
+				comment, ok := patterns[t.String()]
+				if !ok {
+					return
+				}
+				pass.Reportf(n.Pos(), "type %v is banned%v", t.String(), comment)
 			}
 		})
 		return nil, nil
@@ -102,6 +118,9 @@ func loadTrie(path string) error {
 		if line == "" {
 			continue
 		}
+		comment = " - " + comment
+		bannedPatterns[line] = comment
+		line = strings.TrimSuffix(line, "()") // duplicate rule if it ends in (), see #1
 		bannedPatterns[line] = comment
 	}
 }

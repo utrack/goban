@@ -16,6 +16,11 @@ Examples:
 
 # bans `context.TODO()`
 context.TODO
+# or
+context.TODO()
+
+# bans first-party imports of `foo/bar`
+foo/bar
 ```
 
 If symbol has a comment on the same line - then it is printed along with the
